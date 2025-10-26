@@ -11,18 +11,8 @@ npm-debug.log
 .env.*
 !.env.example
 
-# TypeScript
-src
-tsconfig.json
-*.ts
-
-# Development files
+# Development files only (not needed for build)
 nodemon.json
-.eslintrc.json
-
-# Build artifacts (we copy dist/ explicitly)
-*.md
-!README.md
 
 # IDE
 .vscode
@@ -49,3 +39,6 @@ logs
 tmp
 temp
 *.tmp
+
+# Build artifacts from previous builds
+dist
