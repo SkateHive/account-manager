@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies (including dev dependencies for build)
-RUN npm ci
+# Install all dependencies (including dev dependencies for TypeScript build)
+RUN npm install
 
 # Copy source files
 COPY tsconfig.json ./
@@ -30,7 +30,7 @@ RUN apk add --no-cache dumb-init
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm ci --only=production && \
+RUN npm install --omit=dev && \
     npm cache clean --force
 
 # Copy built application from builder stage
