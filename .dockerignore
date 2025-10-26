@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+
+# Node modules
+node_modules
+npm-debug.log
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# TypeScript
+src
+tsconfig.json
+*.ts
+
+# Development files
+nodemon.json
+.eslintrc.json
+
+# Build artifacts (we copy dist/ explicitly)
+*.md
+!README.md
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage
+.nyc_output
+*.test.ts
+*.spec.ts
+
+# Logs
+logs
+*.log
+
+# Temporary files
+tmp
+temp
+*.tmp
