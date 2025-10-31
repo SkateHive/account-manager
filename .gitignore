@@ -70,6 +70,14 @@ web_modules/
 .env.*
 !.env.example
 
+# Sensitive account creation logs (NEVER COMMIT THESE)
+account-keys/
+*.keys.json
+*-keys-*.json
+emergency-recovery/
+temp-accounts/
+account-backup-*.json
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
