@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  account-manager:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: skatehive-account-manager
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - HIVE_NODE_URL=${HIVE_NODE_URL}
+      - HIVE_CREATOR=${HIVE_CREATOR}
+      - HIVE_CREATOR_ACTIVE_WIF=${HIVE_CREATOR_ACTIVE_WIF}
+      - SIGNER_TOKEN=${SIGNER_TOKEN}
+      - PORT=3000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - skatehive-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  skatehive-network:
+    external: false

@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
+import cors from 'cors';
 import pinoHttp from 'pino-http';
 import pino from 'pino';
 import { config } from './config/env';
@@ -71,10 +72,18 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 /**
- * CORS is disabled by default for security
- * Enable only if needed and configure appropriately
+ * CORS configuration for development and production
+ * Allows frontend applications to communicate with the API
  */
-// app.use(cors({ origin: 'https://your-frontend-domain.com' }));
+const corsOptions = {
+  origin: config.NODE_ENV === 'development' 
+    ? ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'http://localhost:8080']
+    : ['https://skatehive.app', 'https://www.skatehive.app'], // Production domains
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-signer-token', 'x-request-id'],
+};
+app.use(cors(corsOptions));
 
 /**
  * Global rate limiting middleware

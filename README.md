@@ -1,17 +1,23 @@
-# Skatehive Hive Signer Microservice
+# Skatehive Hive Account Manager
 
-A secure Node.js microservice for creating and managing Hive blockchain accounts. Built with TypeScript, Express, and the official Hive `@hiveio/dhive` library.
+A secure Node.js microservice for creating and managing Hive blockchain accounts. Built with TypeScript, Express, and the official Hive `@hiveio/dhive` library. Features two-step account creation, emergency key recovery, and Docker + Tailscale deployment.
 
-## Features
+## 🌐 Live Service
+**Production URL**: `https://minivlad.tail9656d3.ts.net`
+**Health Check**: `https://minivlad.tail9656d3.ts.net/healthz`
+
+## ✨ Features
 
 - 🔒 **Secure by Default**: Authentication via token, rate limiting, helmet security headers
 - 🚀 **TypeScript**: Strict type checking and enhanced developer experience
 - 📊 **Structured Logging**: JSON logging with Pino and request tracing
 - 🔑 **Account Creation**: Create Hive accounts using claimed account credits
-- 🧭 **Two-step Account Creation**: Prepare account + finalize (claimed) flow to allow frontends to generate keys and confirm creation without exposing creator credentials
+- 🧭 **Two-step Account Creation**: Prepare account + finalize flow with session management
+- 💾 **Emergency Key Storage**: Local temporary key backup for recovery scenarios
 - 💰 **Resource Credits**: Claim account credits using RC instead of HIVE tokens
 - 🐳 **Docker Ready**: Multi-stage Dockerfile with non-root user
-- ⚡ **Production Ready**: Graceful shutdown, error handling, health checks
+- 🌐 **Tailscale Integration**: Permanent hosting via Tailscale Funnel
+- ⚡ **Production Ready**: Auto-restart, health checks, CORS support
 
 ## Prerequisites
 
@@ -89,6 +95,33 @@ All configuration is done via environment variables:
 | `NODE_ENV` | Environment (development/production/test) | No | `development` |
 | `EMERGENCY_STORAGE_PATH` | Local path for temporary emergency key storage | No | `./emergency-recovery` |
 
+## 🚀 Quick Deploy (Docker + Tailscale)
+
+### Prerequisites
+- Docker installed and running
+- Tailscale connected with Funnel enabled
+
+### Deploy in 3 Steps
+
+1. **Configure environment:**
+```bash
+# Copy and edit production config
+cp .env.production.example .env.production
+# Edit .env.production with your values
+```
+
+2. **Deploy:**
+```bash
+# Make scripts executable and deploy
+chmod +x deploy.sh configure-production.sh
+./configure-production.sh  # Copies from .env to .env.production
+./deploy.sh                # Builds and deploys Docker container
+```
+
+3. **Your service is now live at:**
+   - **Public URL**: `https://minivlad.tail9656d3.ts.net`
+   - **Local URL**: `http://localhost:3001`
+
 ### Environment Variables Details
 
 - **HIVE_NODE_URL**: The Hive RPC node to connect to. Use a reliable public node or your own.
@@ -106,80 +139,168 @@ openssl rand -hex 32
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-## API Endpoints (high level)
+## 📡 API Endpoints
 
-### Health Check
-
-Check if the service is running:
+### Health Check (Enhanced)
+Check service availability and optionally validate authentication:
 
 ```bash
 GET /healthz
+# Optional: x-signer-token header for auth validation
 ```
 
-### Claim Account (claim an account credit)
+**Response:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-10-31T12:34:56.789Z",
+  "auth": "valid" | "invalid" | "not-provided"
+}
+```
+
+### Claim Account Credit
+Claim a Hive account creation credit using Resource Credits:
 
 ```bash
 POST /claim-account
-Headers:
-  x-signer-token: your-secure-token
+Headers: { x-signer-token: your-secure-token }
 ```
 
-### Prepare Account (two-step flow)
+### Two-Step Account Creation Flow
 
-Frontend calls this to verify availability and reserve a short-lived session.
+#### 1. Prepare Account
+Reserve a session and verify account name availability:
 
 ```bash
 POST /prepare-account
-Headers:
-  x-signer-token: your-secure-token
-Content-Type: application/json
-
-Body:
-{
-  "new_account_name": "desiredname"
+Headers: { 
+  x-signer-token: your-secure-token,
+  Content-Type: application/json
 }
+Body: { "new_account_name": "desiredname" }
 ```
 
-Response example:
-
+**Response:**
 ```json
 {
-  "session_id": "uuid",
-  "expires_at": "2025-10-31T12:00:00.000Z"
+  "session_id": "uuid-session-id",
+  "expires_at": "2025-10-31T12:15:00.000Z"
 }
 ```
 
-### Create Claimed Account (finalize, two-step or one-step)
-
-This endpoint accepts final authorities and a session token (if using two-step). It will submit the account creation transaction to the Hive network.
+#### 2. Create Claimed Account
+Finalize account creation with session and authorities:
 
 ```bash
 POST /create-claimed-account
-Headers:
-  x-signer-token: your-secure-token
+Headers: { 
+  x-signer-token: your-secure-token,
   Content-Type: application/json
-
-Body (two-step):
-{
+}
+Body: {
   "session_id": "uuid-from-prepare",
   "new_account_name": "desiredname",
-  "owner": { ... },
-  "active": { ... },
-  "posting": { ... },
-  "memo_key": "STM8...",
-  "signature_proof": "..."
+  "owner": {
+    "weight_threshold": 1,
+    "account_auths": [],
+    "key_auths": [["STM8ownerkey...", 1]]
+  },
+  "active": {
+    "weight_threshold": 1,
+    "account_auths": [],
+    "key_auths": [["STM8activekey...", 1]]
+  },
+  "posting": {
+    "weight_threshold": 1,
+    "account_auths": [],
+    "key_auths": [["STM8postingkey...", 1]]
+  },
+  "memo_key": "STM8memokey...",
+  "signature_proof": "signature-or-proof"
 }
 ```
 
-Response (Success):
-
+**Success Response:**
 ```json
 {
   "success": true,
-  "transaction_id": "xyz789...",
+  "transaction_id": "hive-transaction-id",
   "account_name": "desiredname",
   "message": "Account created successfully"
 }
+```
+
+## 🔧 Frontend Integration
+
+### JavaScript SDK Example
+
+```javascript
+class HiveAccountService {
+  constructor(baseUrl = 'https://minivlad.tail9656d3.ts.net', signerToken) {
+    this.baseUrl = baseUrl;
+    this.headers = {
+      'Content-Type': 'application/json',
+      'x-signer-token': signerToken
+    };
+  }
+
+  async checkHealth() {
+    const response = await fetch(`${this.baseUrl}/healthz`, {
+      headers: { 'x-signer-token': this.headers['x-signer-token'] }
+    });
+    return response.json();
+  }
+
+  async prepareAccount(accountName) {
+    const response = await fetch(`${this.baseUrl}/prepare-account`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ new_account_name: accountName })
+    });
+    return response.json();
+  }
+
+  async createAccount(sessionId, accountName, authorities, signatureProof) {
+    const response = await fetch(`${this.baseUrl}/create-claimed-account`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({
+        session_id: sessionId,
+        new_account_name: accountName,
+        ...authorities,
+        signature_proof: signatureProof
+      })
+    });
+    return response.json();
+  }
+}
+
+// Usage
+const service = new HiveAccountService('https://minivlad.tail9656d3.ts.net', 'your-token');
+
+// Test health and auth
+const health = await service.checkHealth();
+console.log('Service health:', health); // { status: 'ok', auth: 'valid' }
+
+// Two-step account creation
+const { session_id } = await service.prepareAccount('newuser123');
+const result = await service.createAccount(session_id, 'newuser123', authorities, proof);
+```
+
+### Quick Test Commands
+
+```bash
+# Test health endpoint
+curl https://minivlad.tail9656d3.ts.net/healthz
+
+# Test with authentication
+curl -H "x-signer-token: YOUR_TOKEN" https://minivlad.tail9656d3.ts.net/healthz
+
+# Test prepare account
+curl -X POST https://minivlad.tail9656d3.ts.net/prepare-account \
+  -H "x-signer-token: YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"new_account_name": "testuser123"}'
 ```
 
 ## Usage Examples
@@ -260,16 +381,92 @@ CORS is **disabled by default**. Enable only if needed and configure allowed ori
 - `npm run lint` - Run ESLint
 - `npm run lint:fix` - Fix ESLint issues automatically
 
-### New/Updated Scripts & Files
+### Deployment Scripts
 
-- `test-2step-creation.sh` - A helper script that runs the full two-step flow against a running instance for integration testing. Make it executable and run:
+- `deploy.sh` - Complete Docker deployment with Tailscale Funnel setup
+- `configure-production.sh` - Helper to setup production environment from development config
+- `test-2step-creation.sh` - Integration testing script for two-step account creation flow
 
 ```bash
-chmod +x test-2step-creation.sh
-./test-2step-creation.sh
+# Make scripts executable
+chmod +x deploy.sh configure-production.sh test-2step-creation.sh
+
+# Setup and deploy
+./configure-production.sh  # Setup production config
+./deploy.sh                # Deploy Docker container with Tailscale
+
+# Test the deployment
+./test-2step-creation.sh   # Integration test (optional)
 ```
 
-This script is intended for local/integration testing only. It will generate temporary keys and attempt the prepare -> finalize flow. Do not run this against production without reviewing the script.
+## 🐳 Docker + Tailscale Deployment
+
+### Current Infrastructure Integration
+This service integrates seamlessly with existing Docker infrastructure:
+- ✅ Docker multi-service setup (VSC node, Bitcoin, MongoDB, etc.)
+- ✅ Tailscale with Funnel: `minivlad.tail9656d3.ts.net`
+- ✅ Port management: Service runs on port 3001, proxied via Tailscale
+
+### Deployment Architecture
+```
+Internet → Tailscale Funnel → Docker Container (port 3001) → Account Manager
+```
+
+### Manual Docker Commands
+```bash
+# Build image
+docker build -t skatehive-account-manager .
+
+# Run container
+docker run -d \
+  --name skatehive-account-manager \
+  --restart unless-stopped \
+  -p 3001:3000 \
+  --env-file .env.production \
+  skatehive-account-manager
+
+# Enable Tailscale Funnel (new syntax)
+/Applications/Tailscale.app/Contents/MacOS/Tailscale funnel --bg 3001
+
+# Check status
+docker ps --filter name=skatehive-account-manager
+```
+
+### Docker Compose Configuration
+```yaml
+version: '3.8'
+services:
+  account-manager:
+    build: .
+    container_name: skatehive-account-manager
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - HIVE_NODE_URL=${HIVE_NODE_URL}
+      - HIVE_CREATOR=${HIVE_CREATOR}
+      - HIVE_CREATOR_ACTIVE_WIF=${HIVE_CREATOR_ACTIVE_WIF}
+      - SIGNER_TOKEN=${SIGNER_TOKEN}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - skatehive-network
+```
+
+### Production Environment Template
+```bash
+# .env.production
+HIVE_NODE_URL=https://api.hive.blog
+HIVE_CREATOR=your-creator-account
+HIVE_CREATOR_ACTIVE_WIF=5YourActivePrivateKeyHere
+SIGNER_TOKEN=your-secure-32-character-token
+NODE_ENV=production
+PORT=3000
+```
 
 ### Project Structure
 
@@ -320,16 +517,27 @@ The service uses Pino for structured JSON logging with the following features:
 - Blockchain Errors (502): Check the configured Hive node and RC availability.
 - "Non-base58 character" errors when creating PrivateKey objects: Ensure keys are in correct WIF format when passed to `@hiveio/dhive`. When generating deterministic keys locally, convert to WIF before sending or use the server helper that returns WIF if appropriate.
 
-## Emergency Key Storage (local, temporary)
+## 🆘 Emergency Key Storage
 
-This project includes an emergency local key storage feature for recovery scenarios during development or integration testing. Important constraints:
+Local temporary key backup system for recovery scenarios:
 
-- Emergency storage path: default `./emergency-recovery` (configurable via `EMERGENCY_STORAGE_PATH`).
-- Files are written with restrictive permissions (0600) and the directory is included in `.gitignore` to prevent accidental commits.
-- Emergency storage is intended as a last-resort developer convenience only. In production, integrate with a secure secrets manager and do not enable emergency storage.
-- The code explicitly logs warnings when emergency storage is used.
+- **Path**: `./emergency-recovery` (configurable via `EMERGENCY_STORAGE_PATH`)
+- **Permissions**: Files written with 0600 (owner read/write only)
+- **Git-ignored**: Directory excluded from version control
+- **Development only**: Use secrets manager in production
 
-If you discover a missing key after account creation (e.g., frontend failed to persist keys), check the emergency storage using the management endpoints (if enabled) or by listing files in the directory (local only).
+### Recovery Endpoints
+```bash
+# List stored accounts (development only)
+GET /emergency/accounts
+Headers: { x-signer-token: your-token }
+
+# Retrieve keys for specific account
+GET /emergency/retrieve/:accountName
+Headers: { x-signer-token: your-token }
+```
+
+⚠️ **Important**: Emergency storage is for development/testing only. In production, integrate with proper secrets management (AWS Secrets Manager, HashiCorp Vault, etc.).
 
 ## Try it (two-step flow)
 
@@ -369,13 +577,89 @@ curl -X POST http://localhost:3000/create-claimed-account \
 
 If the frontend could not persist the private keys, check the emergency storage (local only) for a recovery copy — but only if you intentionally enabled or allowed emergency recovery in development.
 
-## Changelog (selected)
+## 📋 Error Handling & Status Codes
 
-- 2025-10-31: Added two-step prepare/confirm account creation flow, session management, and emergency local key storage for recovery/testing. Fixed key generation to return WIFs compatible with `@hiveio/dhive`.
+### Common HTTP Status Codes
+- `200` - Success
+- `400` - Validation Error (check request body format)
+- `401` - Authentication Error (invalid x-signer-token)  
+- `409` - Account name already exists
+- `429` - Rate limit exceeded
+- `502` - Blockchain error (insufficient RC, network issues)
 
-## Final notes
+### Error Response Format
+```json
+{
+  "error": "Error Type",
+  "message": "Human readable message", 
+  "details": "Additional context or validation errors"
+}
+```
 
-This README was updated to reflect recent security and workflow improvements. If you maintain a frontend that creates accounts, update it to use the two-step flow to avoid exposing sensitive creator credentials. If you want, I can also create a minimal frontend example showing the prepare -> generate-keys -> finalize sequence.
+## 🔒 Security Features
+
+### Rate Limiting
+- **Global**: 120 requests per 15 minutes per IP
+- **Account Operations**: 30 requests per 15 minutes per IP
+
+### CORS Configuration
+- **Development**: `localhost:3000`, `localhost:3001`, `localhost:5173`, `localhost:8080`
+- **Production**: `https://skatehive.app`, `https://www.skatehive.app`
+
+### Session Management
+- **Expiration**: 15 minutes for account preparation sessions
+- **Single-use**: Sessions invalidated after account creation
+- **Cleanup**: Automatic cleanup of expired sessions
+
+## 🔧 Troubleshooting
+
+### Common Issues
+- **CORS Error**: Verify origin matches allowed domains
+- **"Non-base58 character"**: Keys must be in WIF format for `@hiveio/dhive`
+- **Session expired**: Sessions expire in 15 minutes, prepare new session
+- **Rate limited**: Respect rate limits or increase in middleware config
+- **Auth invalid**: Double-check `x-signer-token` matches server config
+
+### Health Check Debugging
+```bash
+# Basic connectivity
+curl https://minivlad.tail9656d3.ts.net/healthz
+
+# With authentication test
+curl -H "x-signer-token: YOUR_TOKEN" https://minivlad.tail9656d3.ts.net/healthz
+
+# Expected responses:
+# {"status":"ok","timestamp":"...","auth":"valid"}     - ✅ Ready
+# {"status":"ok","timestamp":"...","auth":"invalid"}   - ❌ Wrong token  
+# {"status":"ok","timestamp":"...","auth":"not-provided"} - ⚠️ No token
+```
+
+## 📝 Changelog
+
+### 2025-10-31 - Major Update
+- ✅ **Two-step account creation** with session management
+- ✅ **Emergency key storage** for development recovery  
+- ✅ **Docker + Tailscale deployment** integration
+- ✅ **Enhanced health endpoint** with auth validation
+- ✅ **CORS support** for frontend integration
+- ✅ **Production deployment scripts** and automation
+- ✅ **Comprehensive documentation** consolidation
+
+## 🚀 Production Checklist
+
+- [ ] Configure `.env.production` with real values
+- [ ] Test health endpoint: `curl https://minivlad.tail9656d3.ts.net/healthz`
+- [ ] Verify Docker container is healthy: `docker ps --filter name=skatehive-account-manager`
+- [ ] Confirm Tailscale Funnel is active: `/Applications/Tailscale.app/Contents/MacOS/Tailscale funnel status`
+- [ ] Test frontend integration with two-step flow
+- [ ] Monitor container logs: `docker logs skatehive-account-manager`
+- [ ] Set up log aggregation for production monitoring
+- [ ] Configure secrets management for production keys
+- [ ] Test emergency recovery procedures (development only)
+
+---
+
+**🎯 Quick Start**: Run `./deploy.sh` after configuring `.env.production` to get your permanent Hive account creation service running at `https://minivlad.tail9656d3.ts.net`
 # Skatehive Hive Signer Microservice
 
 A secure Node.js microservice for creating and managing Hive blockchain accounts. Built with TypeScript, Express, and the official Hive dhive library.
