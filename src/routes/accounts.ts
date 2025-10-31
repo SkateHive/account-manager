@@ -2,17 +2,17 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth';
 import { accountOperationsLimiter } from '../middleware/rate';
-import { 
-  createClaimedAccountSchema, 
+import {
+  createClaimedAccountSchema,
   prepareAccountSchema
 } from '../lib/validators';
 import { claimAccount, createClaimedAccount, isAccountAvailable } from '../lib/hive';
-import { 
-  storeEmergencyKeys, 
-  retrieveEmergencyKeys, 
-  listStoredAccounts, 
+import {
+  storeEmergencyKeys,
+  retrieveEmergencyKeys,
+  listStoredAccounts,
   markKeysAsDelivered,
-  printEmergencyInstructions 
+  printEmergencyInstructions
 } from '../lib/emergency-storage';
 import {
   createAccountSession,
@@ -41,10 +41,10 @@ router.post('/claim-account', (req: Request, res: Response) => {
     try {
       // Broadcast claim_account operation to Hive blockchain
       const txId = await claimAccount();
-      
+
       // Log success (but never log private keys or secrets)
       req.log.info({ txId }, 'Account claim successful');
-      
+
       res.status(200).json({
         success: true,
         transaction_id: txId,
@@ -53,11 +53,11 @@ router.post('/claim-account', (req: Request, res: Response) => {
     } catch (error) {
       // Handle Hive RPC errors
       req.log.error({ error }, 'Failed to claim account');
-      
+
       // Check if it's a Hive API error
       if (error && typeof error === 'object' && 'message' in error) {
         const errorMessage = String(error.message);
-        
+
         // Map specific Hive errors to appropriate status codes
         if (errorMessage.includes('bandwidth') || errorMessage.includes('RC')) {
           res.status(502).json({
@@ -68,7 +68,7 @@ router.post('/claim-account', (req: Request, res: Response) => {
           return;
         }
       }
-      
+
       // Generic Hive RPC error
       res.status(502).json({
         error: 'Blockchain Error',
@@ -89,12 +89,12 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
     try {
       // Validate request body against schema
       const validatedData = createClaimedAccountSchema.parse(req.body);
-      
+
       // Check if this is a session-based creation (new 2-step process)
       if (validatedData.session_id && validatedData.confirmed) {
         // SESSION-BASED CREATION (NEW)
         const session = getAccountSession(validatedData.session_id);
-        
+
         if (!session) {
           res.status(400).json({
             error: 'Invalid Session',
@@ -102,7 +102,7 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
           });
           return;
         }
-        
+
         if (session.used) {
           res.status(400).json({
             error: 'Session Already Used',
@@ -110,7 +110,7 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
           });
           return;
         }
-        
+
         // Validate session matches the request
         if (session.username !== validatedData.new_account_name) {
           res.status(400).json({
@@ -119,7 +119,7 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
           });
           return;
         }
-        
+
         // Extract public keys from authorities for validation
         const providedPubkeys = {
           owner: validatedData.owner.key_auths[0]?.[0] || '',
@@ -127,7 +127,7 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
           posting: validatedData.posting.key_auths[0]?.[0] || '',
           memo: validatedData.memo_key,
         };
-        
+
         // Validate that provided keys match session
         if (!validateSessionKeys(validatedData.session_id, providedPubkeys)) {
           res.status(400).json({
@@ -136,7 +136,7 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
           });
           return;
         }
-        
+
         // Mark session as used to prevent reuse
         if (!markSessionAsUsed(validatedData.session_id)) {
           res.status(400).json({
@@ -145,17 +145,17 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
           });
           return;
         }
-        
+
         req.log.info(
-          { 
+          {
             sessionId: validatedData.session_id,
-            accountName: validatedData.new_account_name 
-          }, 
+            accountName: validatedData.new_account_name
+          },
           'Session-based account creation validated - proceeding with blockchain creation'
         );
       } else {
         // DIRECT CREATION (EXISTING - for backward compatibility)
-        
+
         // Check if account name is available
         const available = await isAccountAvailable(validatedData.new_account_name);
         if (!available) {
@@ -166,16 +166,16 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
           });
           return;
         }
-        
+
         req.log.info(
-          { accountName: validatedData.new_account_name }, 
+          { accountName: validatedData.new_account_name },
           'Direct account creation validated - proceeding with blockchain creation'
         );
       }
-      
+
       // Broadcast create_claimed_account operation
       const txId = await createClaimedAccount(validatedData);
-      
+
       // EMERGENCY SAFETY: Store keys temporarily for recovery
       // Extract private keys from the validated request for emergency storage
       const privateKeys = validatedData.private_keys;
@@ -208,20 +208,20 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
         }
       } else {
         req.log.warn(
-          { accountName: validatedData.new_account_name }, 
+          { accountName: validatedData.new_account_name },
           '⚠️  No private keys found in request - emergency storage skipped'
         );
       }
-      
+
       // Log success (never log private keys or request body that may contain sensitive data)
       req.log.info(
-        { 
-          txId, 
-          accountName: validatedData.new_account_name 
-        }, 
+        {
+          txId,
+          accountName: validatedData.new_account_name
+        },
         'Account creation successful'
       );
-      
+
       res.status(201).json({
         success: true,
         transaction_id: txId,
@@ -232,7 +232,7 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
       // Handle validation errors
       if (error instanceof z.ZodError) {
         req.log.warn({ errors: error.errors }, 'Validation failed');
-        
+
         res.status(400).json({
           error: 'Validation Error',
           message: 'Invalid request parameters',
@@ -243,14 +243,14 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
         });
         return;
       }
-      
+
       // Handle Hive RPC errors
       req.log.error({ error }, 'Failed to create claimed account');
-      
+
       // Check if it's a Hive API error
       if (error && typeof error === 'object' && 'message' in error) {
         const errorMessage = String(error.message);
-        
+
         // Map specific Hive errors to appropriate status codes
         if (errorMessage.includes('no claimed accounts') || errorMessage.includes('pending claimed accounts')) {
           res.status(502).json({
@@ -260,7 +260,7 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
           });
           return;
         }
-        
+
         if (errorMessage.includes('already exists') || errorMessage.includes('taken')) {
           res.status(400).json({
             error: 'Validation Error',
@@ -270,7 +270,7 @@ router.post('/create-claimed-account', (req: Request, res: Response) => {
           return;
         }
       }
-      
+
       // Generic Hive RPC error
       res.status(502).json({
         error: 'Blockchain Error',
@@ -291,7 +291,7 @@ router.post('/prepare-account', (req: Request, res: Response) => {
     try {
       // Validate request body against schema
       const validatedData = prepareAccountSchema.parse(req.body);
-      
+
       // Check if account name is available
       const available = await isAccountAvailable(validatedData.new_account_name);
       if (!available) {
@@ -302,17 +302,17 @@ router.post('/prepare-account', (req: Request, res: Response) => {
         });
         return;
       }
-      
+
       // Generate keys for the account
       const { keys, pubkeys } = generateAccountKeys(validatedData.new_account_name);
-      
+
       // Create session for this preparation
       const session = createAccountSession(
         validatedData.new_account_name,
         pubkeys,
         validatedData.creator_account
       );
-      
+
       // Store emergency keys immediately (before sending to frontend)
       try {
         storeEmergencyKeys(
@@ -330,17 +330,17 @@ router.post('/prepare-account', (req: Request, res: Response) => {
         // Log but don't fail the request
         req.log.warn({ emergencyError }, 'Failed to store emergency keys during preparation');
       }
-      
+
       // Log successful preparation (never log private keys)
       req.log.info(
-        { 
+        {
           sessionId: session.sessionId,
           accountName: validatedData.new_account_name,
           expiresAt: new Date(session.expiresAt).toISOString()
-        }, 
+        },
         'Account preparation successful - keys generated and session created'
       );
-      
+
       res.status(200).json({
         success: true,
         keys: {
@@ -364,7 +364,7 @@ router.post('/prepare-account', (req: Request, res: Response) => {
       // Handle validation errors
       if (error instanceof z.ZodError) {
         req.log.warn({ errors: error.errors }, 'Account preparation validation failed');
-        
+
         res.status(400).json({
           error: 'Validation Error',
           message: 'Invalid request parameters',
@@ -375,10 +375,10 @@ router.post('/prepare-account', (req: Request, res: Response) => {
         });
         return;
       }
-      
+
       // Handle other errors
       req.log.error({ error }, 'Failed to prepare account');
-      
+
       res.status(500).json({
         error: 'Internal Server Error',
         message: 'Failed to prepare account for creation',
@@ -403,9 +403,9 @@ router.get('/session-stats', (req: Request, res: Response) => {
   try {
     const stats = getSessionStats();
     const cleanedUp = cleanupExpiredSessions();
-    
+
     req.log.info({ stats, cleanedUp }, 'Session statistics requested');
-    
+
     res.status(200).json({
       success: true,
       stats,
@@ -435,9 +435,9 @@ router.get('/emergency-recovery/list', (req: Request, res: Response) => {
 
   try {
     const accounts = listStoredAccounts();
-    
+
     req.log.info({ count: accounts.length }, 'Listed stored emergency accounts');
-    
+
     res.status(200).json({
       success: true,
       count: accounts.length,
@@ -474,7 +474,7 @@ router.get('/emergency-recovery/:accountName', (req: Request, res: Response) => 
 
   try {
     const { accountName } = req.params;
-    
+
     if (!accountName) {
       res.status(400).json({
         error: 'Validation Error',
@@ -482,9 +482,9 @@ router.get('/emergency-recovery/:accountName', (req: Request, res: Response) => 
       });
       return;
     }
-    
+
     const keyData = retrieveEmergencyKeys(accountName);
-    
+
     if (!keyData) {
       res.status(404).json({
         error: 'Not Found',
@@ -494,12 +494,12 @@ router.get('/emergency-recovery/:accountName', (req: Request, res: Response) => 
     }
 
     req.log.warn(
-      { accountName, transactionId: keyData.transactionId }, 
+      { accountName, transactionId: keyData.transactionId },
       'Emergency keys retrieved - SENSITIVE OPERATION'
     );
-    
+
     const ageHours = (Date.now() - keyData.createdAt) / (1000 * 60 * 60);
-    
+
     res.status(200).json({
       success: true,
       accountName: keyData.accountName,
@@ -537,7 +537,7 @@ router.post('/emergency-recovery/:accountName/mark-delivered', (req: Request, re
   try {
     const { accountName } = req.params;
     const { transactionId } = req.body;
-    
+
     if (!accountName) {
       res.status(400).json({
         error: 'Validation Error',
@@ -545,7 +545,7 @@ router.post('/emergency-recovery/:accountName/mark-delivered', (req: Request, re
       });
       return;
     }
-    
+
     if (!transactionId) {
       res.status(400).json({
         error: 'Validation Error',
@@ -555,12 +555,12 @@ router.post('/emergency-recovery/:accountName/mark-delivered', (req: Request, re
     }
 
     markKeysAsDelivered(accountName, transactionId);
-    
+
     req.log.info(
-      { accountName, transactionId }, 
+      { accountName, transactionId },
       'Emergency keys marked as delivered'
     );
-    
+
     res.status(200).json({
       success: true,
       message: `Keys for ${accountName} marked as delivered`,
