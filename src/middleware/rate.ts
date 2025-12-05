@@ -7,6 +7,8 @@ import rateLimit from 'express-rate-limit';
 export const globalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 120, // 120 requests per window
+  // Allowlist health checks so status pages don't burn the quota
+  skip: (req) => req.path === '/healthz',
   message: {
     error: 'Too Many Requests',
     message: 'Global rate limit exceeded. Please try again later.',
