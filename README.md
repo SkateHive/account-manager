@@ -3,8 +3,8 @@
 A secure Node.js microservice for creating and managing Hive blockchain accounts. Built with TypeScript, Express, and the official Hive `@hiveio/dhive` library. Features two-step account creation, emergency key recovery, and Docker + Tailscale deployment.
 
 ## 🌐 Live Service
-**Production URL**: `https://minivlad.tail9656d3.ts.net`
-**Health Check**: `https://minivlad.tail9656d3.ts.net/healthz`
+**Production URL**: `https://minivlad.tail83ea3e.ts.net`
+**Health Check**: `https://minivlad.tail83ea3e.ts.net/healthz`
 
 ## ✨ Features
 
@@ -119,7 +119,7 @@ chmod +x deploy.sh configure-production.sh
 ```
 
 3. **Your service is now live at:**
-   - **Public URL**: `https://minivlad.tail9656d3.ts.net`
+   - **Public URL**: `https://minivlad.tail83ea3e.ts.net`
    - **Local URL**: `http://localhost:3001`
 
 ### Environment Variables Details
@@ -236,7 +236,7 @@ Body: {
 
 ```javascript
 class HiveAccountService {
-  constructor(baseUrl = 'https://minivlad.tail9656d3.ts.net', signerToken) {
+  constructor(baseUrl = 'https://minivlad.tail83ea3e.ts.net', signerToken) {
     this.baseUrl = baseUrl;
     this.headers = {
       'Content-Type': 'application/json',
@@ -276,7 +276,7 @@ class HiveAccountService {
 }
 
 // Usage
-const service = new HiveAccountService('https://minivlad.tail9656d3.ts.net', 'your-token');
+const service = new HiveAccountService('https://minivlad.tail83ea3e.ts.net', 'your-token');
 
 // Test health and auth
 const health = await service.checkHealth();
@@ -291,13 +291,13 @@ const result = await service.createAccount(session_id, 'newuser123', authorities
 
 ```bash
 # Test health endpoint
-curl https://minivlad.tail9656d3.ts.net/healthz
+curl https://minivlad.tail83ea3e.ts.net/healthz
 
 # Test with authentication
-curl -H "x-signer-token: YOUR_TOKEN" https://minivlad.tail9656d3.ts.net/healthz
+curl -H "x-signer-token: YOUR_TOKEN" https://minivlad.tail83ea3e.ts.net/healthz
 
 # Test prepare account
-curl -X POST https://minivlad.tail9656d3.ts.net/prepare-account \
+curl -X POST https://minivlad.tail83ea3e.ts.net/prepare-account \
   -H "x-signer-token: YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"new_account_name": "testuser123"}'
@@ -404,7 +404,7 @@ chmod +x deploy.sh configure-production.sh test-2step-creation.sh
 ### Current Infrastructure Integration
 This service integrates seamlessly with existing Docker infrastructure:
 - ✅ Docker multi-service setup (VSC node, Bitcoin, MongoDB, etc.)
-- ✅ Tailscale with Funnel: `minivlad.tail9656d3.ts.net`
+- ✅ Tailscale with Funnel: `minivlad.tail83ea3e.ts.net`
 - ✅ Port management: Service runs on port 3001, proxied via Tailscale
 
 ### Deployment Architecture
@@ -623,10 +623,10 @@ If the frontend could not persist the private keys, check the emergency storage 
 ### Health Check Debugging
 ```bash
 # Basic connectivity
-curl https://minivlad.tail9656d3.ts.net/healthz
+curl https://minivlad.tail83ea3e.ts.net/healthz
 
 # With authentication test
-curl -H "x-signer-token: YOUR_TOKEN" https://minivlad.tail9656d3.ts.net/healthz
+curl -H "x-signer-token: YOUR_TOKEN" https://minivlad.tail83ea3e.ts.net/healthz
 
 # Expected responses:
 # {"status":"ok","timestamp":"...","auth":"valid"}     - ✅ Ready
@@ -648,7 +648,7 @@ curl -H "x-signer-token: YOUR_TOKEN" https://minivlad.tail9656d3.ts.net/healthz
 ## 🚀 Production Checklist
 
 - [ ] Configure `.env.production` with real values
-- [ ] Test health endpoint: `curl https://minivlad.tail9656d3.ts.net/healthz`
+- [ ] Test health endpoint: `curl https://minivlad.tail83ea3e.ts.net/healthz`
 - [ ] Verify Docker container is healthy: `docker ps --filter name=skatehive-account-manager`
 - [ ] Confirm Tailscale Funnel is active: `/Applications/Tailscale.app/Contents/MacOS/Tailscale funnel status`
 - [ ] Test frontend integration with two-step flow
@@ -659,7 +659,7 @@ curl -H "x-signer-token: YOUR_TOKEN" https://minivlad.tail9656d3.ts.net/healthz
 
 ---
 
-**🎯 Quick Start**: Run `./deploy.sh` after configuring `.env.production` to get your permanent Hive account creation service running at `https://minivlad.tail9656d3.ts.net`
+**🎯 Quick Start**: Run `./deploy.sh` after configuring `.env.production` to get your permanent Hive account creation service running at `https://minivlad.tail83ea3e.ts.net`
 # Skatehive Hive Signer Microservice
 
 A secure Node.js microservice for creating and managing Hive blockchain accounts. Built with TypeScript, Express, and the official Hive dhive library.

@@ -22,11 +22,32 @@ router.get('/healthz', (req: Request, res: Response) => {
     }
   }
   
-  res.status(200).json({
+  const payload = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     auth: authStatus,
-  });
+  };
+
+  const accept = String(req.headers.accept || '');
+  if (accept.includes('text/html')) {
+    const html = [
+      '<!doctype html>',
+      '<html>',
+      '  <head><meta charset="utf-8"><title>Signup Signer Health</title></head>',
+      '  <body>',
+      '    <h1>Signup Signer Health</h1>',
+      '    <p>Status: ' + payload.status + '</p>',
+      '    <p>Auth: ' + payload.auth + '</p>',
+      '    <p>Timestamp: ' + payload.timestamp + '</p>',
+      '  </body>',
+      '</html>'
+    ].join('
+');
+    res.status(200).type('html').send(html);
+    return;
+  }
+
+  res.status(200).json(payload);
 });
 
 export default router;
